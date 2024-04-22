@@ -1,0 +1,170 @@
+apiVersion: app.sealos.io/v1
+kind: Instance
+metadata:
+  name: ubuntu-sshd-anfixxwz
+  labels:
+    cloud.sealos.io/deploy-on-sealos: ubuntu-sshd-anfixxwz
+spec:
+  gitRepo: https://github.com/PandaaKai/sshd-web
+  templateType: inline
+  categories: []
+  title: sshd-web
+  url: https://github.com/PandaaKai/sshd-web
+  author: Sealos
+  description: sshd-web
+  readme: https://github.com/PandaaKai/sshd-web/blob/main/README.md
+  icon: https://zhieasy.oss-cn-hangzhou.aliyuncs.com/zhiyilogo.jpg
+  defaults:
+    app_name:
+      type: string
+      value: ubuntu-sshd-undefined
+    app_host:
+      type: string
+      value: undefined
+  inputs:
+    PORT:
+      description: port
+      type: string
+      default: '8080'
+      required: true
+    ROOT_PASSWORD:
+      description: root password
+      type: string
+      default: root@sadazxc
+      required: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ubuntu-sshd-anfixxwz
+  labels:
+    cloud.sealos.io/deploy-on-sealos: ubuntu-sshd-anfixxwz
+data:
+  default: |-
+    server {
+      listen       80;
+      server_name  _;
+
+      location / {
+        proxy_set_header  X-Real-IP  $remote_addr;
+        proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+
+        proxy_pass http://localhost:8080;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ubuntu-sshd-anfixxwz
+  annotations:
+    originImageName: registry.cn-hangzhou.aliyuncs.com/pandak/ssh:latest
+    deploy.cloud.sealos.io/minReplicas: '1'
+    deploy.cloud.sealos.io/maxReplicas: '1'
+  labels:
+    cloud.sealos.io/app-deploy-manager: ubuntu-sshd-anfixxwz
+    app: ubuntu-sshd-anfixxwz
+    cloud.sealos.io/deploy-on-sealos: ubuntu-sshd-anfixxwz
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: ubuntu-sshd-anfixxwz
+  template:
+    metadata:
+      labels:
+        app: ubuntu-sshd-anfixxwz
+    spec:
+      containers:
+        - name: ubuntu-sshd-anfixxwz
+          image: registry.cn-hangzhou.aliyuncs.com/pandak/ssh:latest
+          resources:
+            requests:
+              cpu: 100m
+              memory: 102Mi
+            limits:
+              cpu: 2000m
+              memory: 2048Mi
+          command: []
+          args: []
+          env:
+            - name: ROOT_PASSWORD
+              value: root@sadazxc
+            - name: WEB_PORT
+              value: '8080'
+          ports:
+            - containerPort: 22
+              name: sshd
+            - containerPort: 80
+              name: web
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: default
+              mountPath: /etc/nginx/sites-available
+      volumes:
+        - name: default
+          configMap:
+            name: ubuntu-sshd-anfixxwz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ubuntu-sshd-anfixxwz
+  labels:
+    cloud.sealos.io/app-deploy-manager: ubuntu-sshd-anfixxwz
+    cloud.sealos.io/deploy-on-sealos: ubuntu-sshd-anfixxwz
+spec:
+  type: NodePort
+  ports:
+    - port: 22
+      targetPort: 22
+      name: sshd
+    - port: 80
+      targetPort: 80
+      name: web
+  selector:
+    app: ubuntu-sshd-anfixxwz
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ubuntu-sshd-anfixxwz
+  labels:
+    cloud.sealos.io/app-deploy-manager: ubuntu-sshd-anfixxwz
+    cloud.sealos.io/app-deploy-manager-domain: musprijd
+    cloud.sealos.io/deploy-on-sealos: ubuntu-sshd-anfixxwz
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: 32m
+    nginx.ingress.kubernetes.io/server-snippet: |
+      client_header_buffer_size 64k;
+      large_client_header_buffers 4 128k;
+    nginx.ingress.kubernetes.io/ssl-redirect: 'false'
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/client-body-buffer-size: 64k
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 64k
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      if ($request_uri ~* \.(js|css|gif|jpe?g|png)) {
+        expires 30d;
+        add_header Cache-Control "public";
+      }
+spec:
+  rules:
+    - host: musprijd.bja.sealos.run
+      http:
+        paths:
+          - pathType: Prefix
+            path: /
+            backend:
+              service:
+                name: ubuntu-sshd-anfixxwz
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - musprijd.bja.sealos.run
+      secretName: wildcard-cert
